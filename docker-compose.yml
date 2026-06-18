@@ -1,0 +1,49 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  browser:
+    build:
+      context: .
+      dockerfile: Dockerfile.browser
+    ports:
+      - "5051:5051"
+    environment:
+      TEMPAIL_URL: https://tempail.com/ua/
+      HEADLESS: "true"
+      MANUAL_CAPTCHA_TIMEOUT: "120"
+    shm_size: "2gb"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5051/health', timeout=5)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "5050:5050"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      BROWSER_SERVICE_URL: http://browser:5051
+    depends_on:
+      redis:
+        condition: service_healthy
+      browser:
+        condition: service_healthy
